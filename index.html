@@ -1,0 +1,1267 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quikye — Image Studio</title>
+<meta name="description" content="Resize, convert and compress images instantly in your browser. Nothing is uploaded." />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0b0c1a" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Quikye" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#eef0fb; --muted:#9aa0c0; --faint:#6b7099;
+    --bg0:#080814;
+    --glass:rgba(20,22,40,.6); --glass-2:rgba(30,33,56,.5);
+    --hair:rgba(255,255,255,.10); --hair-soft:rgba(255,255,255,.06);
+    --accent:#8b8cf7; --good:#34d399;
+    --grad:linear-gradient(110deg,#a78bfa 0%,#60a5fa 45%,#22d3ee 100%);
+    --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Monaco,monospace;
+    --radius:16px;
+  }
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:var(--sys);font-size:14px;color:var(--ink);line-height:1.45;letter-spacing:-.01em;
+    min-height:100vh;-webkit-font-smoothing:antialiased;background:var(--bg0);
+    padding:44px 16px 112px;position:relative;overflow-x:hidden;
+  }
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* animated mesh */
+  .mesh{position:fixed;inset:0;z-index:-2;overflow:hidden;background:radial-gradient(120% 120% at 50% -10%,#181a33,#08081400 60%),#080814}
+  .mesh::after{content:"";position:absolute;inset:-2px;background:
+     radial-gradient(40% 36% at 18% 22%, rgba(167,139,250,.55), transparent 60%),
+     radial-gradient(42% 38% at 84% 16%, rgba(34,211,238,.40), transparent 60%),
+     radial-gradient(46% 44% at 70% 88%, rgba(244,114,182,.42), transparent 60%),
+     radial-gradient(40% 40% at 12% 86%, rgba(96,165,250,.45), transparent 60%);
+     filter:blur(28px);animation:mesh 26s ease-in-out infinite}
+  @keyframes mesh{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(3%,-2%) scale(1.06)}66%{transform:translate(-3%,2%) scale(1.03)}}
+  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+
+  /* menu bar */
+  .menubar{position:fixed;top:0;left:0;right:0;height:26px;z-index:60;display:flex;align-items:center;gap:18px;padding:0 14px;font-size:13px;color:#e9ebf7;
+    background:rgba(16,18,32,.55);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);box-shadow:0 .5px 0 rgba(255,255,255,.08)}
+  .menubar .app{font-weight:700}
+  .menubar .mi{opacity:.7}
+  .menubar .right{margin-left:auto;display:flex;align-items:center;gap:14px;opacity:.85}
+
+  .menu{position:relative;display:inline-flex}
+  .mbtn{font:inherit;font-size:13px;color:#e9ebf7;background:transparent;border:0;padding:2px 7px;border-radius:6px;cursor:pointer;opacity:.85}
+  .mbtn:hover,.mbtn[aria-expanded="true"]{background:rgba(255,255,255,.16);opacity:1}
+  .dropdown{position:absolute;top:24px;left:0;min-width:248px;z-index:90;padding:6px;border-radius:13px;
+    background:rgba(20,22,40,.9);-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);
+    border:1px solid var(--hair);box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .dropdown[hidden]{display:none}
+  .dd-item{display:flex;width:100%;align-items:center;gap:8px;font:inherit;font-size:13px;color:var(--ink);background:transparent;border:0;text-align:left;padding:8px 10px;border-radius:9px;cursor:pointer}
+  .dd-item:hover{background:var(--grad);color:#0a0a16;font-weight:600}
+  .dd-sep{height:1px;background:var(--hair);margin:6px 4px}
+  .dd-head{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:2px 10px 6px}
+  .dd-recents{max-height:264px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+  .dd-empty{font-size:12.5px;color:var(--faint);padding:2px 10px 8px}
+  .dd-rec{display:flex;width:100%;align-items:center;gap:10px;font:inherit;background:transparent;border:0;text-align:left;padding:6px 8px;border-radius:9px;cursor:pointer;color:var(--ink)}
+  .dd-rec:hover{background:rgba(255,255,255,.12)}
+  .dd-rec img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 auto;background:#000;box-shadow:0 0 0 1px var(--hair)}
+  .dd-rec .nm{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dd-rec .sz{font-size:11px;color:var(--faint);flex:0 0 auto}
+
+  .modal{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:20px;background:rgba(5,6,14,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .modal[hidden]{display:none}
+  .sheet{width:min(440px,100%);max-height:82vh;overflow:auto;border-radius:18px;background:rgba(22,24,42,.95);
+    -webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);border:1px solid var(--hair);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--hair);font-weight:700;font-size:16px}
+  .sheet-x{width:28px;height:28px;border-radius:8px;border:1px solid var(--hair);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer;font-size:13px;line-height:1}
+  .sheet-x:hover{background:rgba(255,255,255,.14)}
+  .sheet-b{padding:18px}
+  .sheet-b p{font-size:13.5px;color:var(--muted);margin-bottom:12px;line-height:1.55}
+  .sheet-b p:last-child{margin-bottom:0}
+  .sheet-b b{color:var(--ink);font-weight:600}
+  .sheet-b ol{margin:0 0 0 2px;padding:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:10px}
+  .sheet-b ol li{counter-increment:s;position:relative;padding-left:30px;font-size:13.5px;color:var(--muted);line-height:1.5}
+  .sheet-b ol li::before{content:counter(s);position:absolute;left:0;top:0;width:21px;height:21px;border-radius:50%;background:var(--grad);color:#0a0a16;font-size:11px;font-weight:700;display:grid;place-items:center}
+  .keys-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--hair-soft)}
+  .keys-row:last-child{border-bottom:0}
+  .keys-row .lbl{color:var(--muted);font-size:13.5px}
+  .keys-row .k{display:flex;gap:5px;flex:0 0 auto}
+  kbd{font-family:var(--mono);font-size:11.5px;background:rgba(255,255,255,.1);border:1px solid var(--hair);border-bottom-width:2px;border-radius:6px;padding:2px 7px;color:var(--ink);white-space:nowrap}
+  .menubar .right svg{display:block}
+
+  .wrap{max-width:960px;margin:0 auto}
+
+  /* window */
+  .window{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--glass);
+    -webkit-backdrop-filter:blur(34px) saturate(170%);backdrop-filter:blur(34px) saturate(170%);
+    box-shadow:0 0 0 1px var(--hair),0 1px 0 rgba(255,255,255,.08) inset,0 30px 80px rgba(0,0,0,.55)}
+  .window::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:var(--radius);
+    background:radial-gradient(420px 320px at var(--mx,80%) var(--my,-10%),rgba(255,255,255,.10),transparent 70%)}
+  .toolbar{height:46px;display:flex;align-items:center;padding:0 14px;position:relative;border-bottom:1px solid var(--hair);cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
+  .toolbar:active{cursor:grabbing}
+  body.dragging-win{cursor:grabbing;-webkit-user-select:none;user-select:none}
+  .window.floating{z-index:40}
+  .lights{display:flex;gap:8px}
+  .lights i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}
+  .lights .r{background:#ff5f57}.lights .y{background:#febc2e}.lights .g{background:#28c840}
+  .toolbar .title{position:absolute;left:0;right:0;text-align:center;font-size:13.5px;font-weight:600;pointer-events:none;color:#c9cdec}
+
+  .winbody{display:grid;grid-template-columns:288px 1fr;min-height:320px}
+  .sidebar{background:var(--glass-2);padding:16px;border-right:1px solid var(--hair)}
+  .content{padding:18px}
+
+  /* dropzone with animated gradient border */
+  .dropzone{grid-column:1 / -1;margin:18px;border-radius:var(--radius);padding:50px 26px;text-align:center;cursor:pointer;position:relative;
+    background:rgba(255,255,255,.03);transition:background .15s}
+  .dropzone::before{content:"";position:absolute;inset:0;border-radius:var(--radius);padding:1.5px;
+    background:conic-gradient(from var(--a,0deg),#a78bfa,#22d3ee,#f472b6,#60a5fa,#a78bfa);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+    animation:spin 6s linear infinite;opacity:.5;transition:opacity .15s}
+  .dropzone:hover{background:rgba(167,139,250,.10)}
+  .dropzone:hover::before,.dropzone.drag::before{opacity:1}
+  .dropzone:focus-visible{outline:none}
+  .dropzone:focus-visible::before{opacity:1}
+  @keyframes spin{to{--a:360deg}}
+  @property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+  .dz-icon{width:46px;height:46px;margin:0 auto 14px;color:#bda7ff;filter:drop-shadow(0 0 10px rgba(167,139,250,.6))}
+  .dropzone h2{font-size:18px;font-weight:600}
+  .dropzone .sub{color:var(--muted);font-size:13px;margin-top:5px}
+  .dropzone .formats{margin-top:16px;font-size:11.5px;color:var(--faint);letter-spacing:.04em}
+
+  .sidebar,.content{display:none}
+  .winbody.on .sidebar,.winbody.on .content{display:block}
+  .winbody.on .dropzone{display:none}
+
+  .grouplabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:2px 2px 12px}
+  .field{margin-bottom:16px}
+  .field > .flabel{font-size:13px;font-weight:600;margin-bottom:8px;display:block}
+
+  .seg{display:flex;background:rgba(0,0,0,.3);border:1px solid var(--hair-soft);border-radius:10px;padding:3px}
+  .seg button{flex:1;border:0;background:transparent;font:inherit;font-size:13px;font-weight:500;color:var(--muted);padding:6px 6px;border-radius:7px;cursor:pointer;transition:.14s}
+  .seg button[aria-pressed="true"]{color:#0a0a16;font-weight:600;background:var(--grad);box-shadow:0 2px 12px rgba(96,165,250,.4)}
+  .seg button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(139,140,247,.5)}
+
+  .dims{display:flex;align-items:flex-end;gap:8px}
+  .dims .grp{flex:1}
+  .dims small{font-size:11.5px;color:var(--muted);display:block;margin-bottom:5px}
+  input[type="number"]{width:100%;font:inherit;font-size:14px;padding:8px 10px;background:rgba(0,0,0,.3);color:var(--ink);
+    border:1px solid var(--hair);border-radius:9px}
+  input[type="number"]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,140,247,.3);background:rgba(0,0,0,.42)}
+  .lock{width:38px;height:36px;flex:0 0 auto;display:grid;place-items:center;cursor:pointer;color:var(--muted);
+    border:1px solid var(--hair);border-radius:9px;background:rgba(0,0,0,.3)}
+  .lock[aria-pressed="true"]{color:#0a0a16;background:var(--grad);border-color:transparent}
+  .lock:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(139,140,247,.5)}
+
+  .pct{display:flex;align-items:center;gap:12px}
+  .pct input[type="range"]{flex:1}
+  .pct .val{min-width:50px;text-align:right;font-size:14px;font-weight:600}
+
+  select{width:100%;font:inherit;font-size:14px;padding:8px 34px 8px 10px;color:var(--ink);cursor:pointer;
+    border:1px solid var(--hair);border-radius:9px;-webkit-appearance:none;appearance:none;background-color:rgba(0,0,0,.3);
+    background-repeat:no-repeat;background-position:right 5px center;background-size:20px 26px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='26'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23a78bfa'/><stop offset='1' stop-color='%2360a5fa'/></linearGradient></defs><rect x='1' y='3' width='18' height='20' rx='6' fill='url(%23g)'/><path d='M6.5 12l3.5-3.5L13.5 12M6.5 14l3.5 3.5 3.5-3.5' fill='none' stroke='%230a0a16' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>")}
+  select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,140,247,.3)}
+  select option{background:#161830;color:var(--ink)}
+
+  input[type="range"]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;cursor:pointer}
+  input[type="range"]::-webkit-slider-runnable-track{height:5px;border-radius:99px;background:rgba(255,255,255,.16)}
+  input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;
+    background:#fff;box-shadow:0 0 0 4px rgba(139,140,247,.25),0 2px 8px rgba(0,0,0,.5);cursor:pointer}
+  input[type="range"]::-moz-range-track{height:5px;border-radius:99px;background:rgba(255,255,255,.16)}
+  input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:none;box-shadow:0 0 0 4px rgba(139,140,247,.25)}
+  input[type="range"]:disabled{opacity:.4}
+
+  .ctrl-row{display:flex;align-items:center;gap:12px}
+  .ctrl-row .val{min-width:36px;text-align:right;font-size:14px;font-weight:600}
+  .ctrl-row.dim{opacity:.4;pointer-events:none}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:8px;line-height:1.45}
+  .target-in{display:flex;align-items:center;gap:8px}
+  .target-in input{flex:1}
+  .target-in span{font-size:13px;color:var(--muted);font-weight:600}
+
+  /* preview + compare slider */
+  .stage{position:relative;border-radius:13px;min-height:250px;display:grid;place-items:center;padding:14px;overflow:hidden;
+    border:1px solid var(--hair);
+    background-color:rgba(0,0,0,.28);
+    background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,.05) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(-45deg,transparent 75%,rgba(255,255,255,.05) 75%);
+    background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}
+  .compare{position:relative;display:inline-block;line-height:0;max-width:100%;border-radius:8px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);touch-action:none}
+  .cmp-img{display:block;max-width:100%;max-height:360px;width:auto;height:auto;-webkit-user-drag:none;user-select:none}
+  .cmp-top{position:absolute;inset:0}
+  .cmp-top .cmp-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .cmp-line{position:absolute;top:0;bottom:0;left:50%;width:2px;background:rgba(255,255,255,.9);transform:translateX(-1px);box-shadow:0 0 12px rgba(255,255,255,.5);cursor:ew-resize}
+  .cmp-line:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent),0 0 14px rgba(139,140,247,.8)}
+  .cmp-knob{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;
+    background:rgba(20,20,34,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1.5px solid rgba(255,255,255,.85);
+    display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  .cmp-knob::before{content:"";width:14px;height:8px;background:
+    linear-gradient(90deg,transparent 0,transparent 2px,#fff 2px,#fff 3px,transparent 3px,transparent 5px) ,none;}
+  .cmp-knob svg{display:block}
+  .cmp-tag{position:absolute;bottom:8px;font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:3px 8px;border-radius:99px;
+    background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff;line-height:1.2}
+  .cmp-tag.l{left:8px}.cmp-tag.r{right:8px}
+  .stage.busy::after{content:"Working…";position:absolute;left:10px;top:10px;font-size:11.5px;font-weight:600;color:#0a0a16;background:var(--grad);padding:3px 9px;border-radius:7px;z-index:5}
+
+  .filename{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);margin:12px 2px}
+  .filename b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .meter{height:9px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin:6px 0 16px;border:1px solid var(--hair-soft)}
+  .meter > i{display:block;height:100%;width:100%;border-radius:99px;background:var(--grad);box-shadow:0 0 16px rgba(96,165,250,.6);transition:width .5s cubic-bezier(.4,0,.2,1)}
+  .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center}
+  .stat small{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:4px}
+  .stat .num{font-size:20px;font-weight:700}
+  .stat .num.from{color:var(--muted);font-weight:600}
+  .stat .num.save{font-size:24px}
+  .stat .sub{font-size:11px;color:var(--faint);margin-top:2px}
+  .encline{text-align:center;font-size:12px;color:var(--muted);margin-top:14px}
+  .encline b{color:var(--ink);font-weight:600}
+  .encline .badge{display:inline-block;background:rgba(139,140,247,.18);color:#c4b5fd;font-weight:600;padding:1px 8px;border-radius:99px;font-size:11.5px;border:1px solid rgba(139,140,247,.35)}
+
+  .guard{display:flex;gap:9px;align-items:flex-start;margin:0 2px 12px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;border:1px solid var(--hair)}
+  .guard.warn{background:rgba(255,176,32,.12);border-color:rgba(255,176,32,.4);color:#ffd58a}
+  .guard.ok{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3);color:#a7f3cf}
+  .guard .g-ic{flex:0 0 auto;margin-top:1px}
+  .guard b{font-weight:600}
+  .guard .g-txt{flex:1}
+
+  .batch{padding:18px}
+  .batch-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+  .batch-ctrls{display:flex;gap:10px;flex-wrap:wrap}
+  .batch-ctrls label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:600;color:var(--muted)}
+  .batch-ctrls select{font-size:13px;padding:6px 26px 6px 9px}
+  .batch-sum{font-size:12.5px;color:var(--muted)}
+  .batch-sum b{color:var(--ink);font-weight:600}
+  .batch-list{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;margin-bottom:14px}
+  .b-item{display:flex;align-items:center;gap:12px;padding:8px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid var(--hair-soft)}
+  .b-item img{width:42px;height:42px;border-radius:8px;object-fit:cover;flex:0 0 auto;background:#000;box-shadow:0 0 0 1px var(--hair)}
+  .b-item .b-meta{flex:1;min-width:0}
+  .b-item .b-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .b-item .b-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .b-item .b-save{flex:0 0 auto;font-size:13px;font-weight:700;color:var(--good)}
+  .b-item .b-save.work{color:var(--muted);font-weight:500}
+
+  .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+  .btn{font:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:.14s}
+  .btn-primary{color:#0a0a16;background:var(--grad);box-shadow:0 4px 18px rgba(96,165,250,.4)}
+  .btn-primary:hover{filter:brightness(1.08);box-shadow:0 6px 24px rgba(96,165,250,.55)}
+  .btn-primary:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(139,140,247,.5)}
+  .btn-ghost{background:rgba(255,255,255,.06);color:var(--ink);border-color:var(--hair)}
+  .btn-ghost:hover{background:rgba(255,255,255,.12);border-color:var(--accent)}
+  .btn-ghost:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(139,140,247,.5)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;filter:none;box-shadow:none}
+
+  .toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(10px);z-index:100;
+    background:rgba(10,10,22,.85);color:#fff;font-size:13px;font-weight:500;padding:10px 18px;border-radius:12px;border:1px solid var(--hair);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  footer{text-align:center;color:rgba(255,255,255,.6);font-size:12px;margin-top:16px}
+
+  .stickies{position:fixed;top:84px;right:20px;z-index:55;width:216px;display:flex;flex-direction:column;align-items:flex-end;gap:18px}
+  .sticky{position:relative;width:210px;padding:18px 16px;transform:rotate(var(--rot,2deg));
+    background:linear-gradient(165deg,#fff6a3,#ffe864);color:#3a2f00;border-radius:3px;
+    box-shadow:0 12px 28px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.55);
+    font-family:'Bradley Hand','Marker Felt','Segoe Print','Comic Sans MS',cursive;transition:transform .18s ease}
+  .sticky.s-pink{background:linear-gradient(165deg,#ffd2de,#ffb0c6);color:#5a1f33}
+  .sticky.s-mint{background:linear-gradient(165deg,#caf5db,#9ee7bd);color:#143a26}
+  .sticky::before{content:"";position:absolute;top:-11px;left:50%;width:84px;height:22px;transform:translateX(-50%) rotate(-2.5deg);
+    background:rgba(255,255,255,.42);border:1px solid rgba(0,0,0,.05);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+  .sticky::after{content:"";position:absolute;right:0;bottom:0;width:0;height:0;border-style:solid;border-width:0 0 20px 20px;border-color:transparent transparent rgba(0,0,0,.12) transparent}
+  .sticky:hover{transform:rotate(var(--rot,2deg)) translateY(-3px) scale(1.02);z-index:2}
+  .sticky h4{font-size:16px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .sticky p{font-size:13px;line-height:1.5;opacity:.85}
+  .sticky .rule{height:1px;background:rgba(0,0,0,.16);margin:12px 0 11px}
+  .sticky .lbl{font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.65}
+  .sticky .big{font-size:34px;font-weight:800;line-height:1.05;color:#1f7a3a;margin-top:2px}
+  .sticky .detail{font-size:12.5px;margin-top:3px;opacity:.8}
+  .sticky .peel{position:absolute;top:5px;right:6px;width:20px;height:20px;border:0;background:transparent;color:inherit;cursor:pointer;font-size:13px;line-height:1;opacity:.5;border-radius:5px}
+  .sticky .peel:hover{opacity:1;background:rgba(0,0,0,.08)}
+  @media (max-width:1080px){
+    .stickies{position:static;right:auto;top:auto;width:auto;max-width:720px;margin:6px auto 0;
+      flex-direction:row;align-items:stretch;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;
+      padding:16px 12px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .stickies::-webkit-scrollbar{display:none}
+    .sticky{flex:0 0 270px;width:270px;transform:none;scroll-snap-align:center}
+    .sticky:hover{transform:translateY(-3px)}
+  }
+  @media (prefers-reduced-motion:reduce){ .sticky,.sticky:hover{transition:none;transform:rotate(var(--rot,2deg))} }
+
+  .dock{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:60;display:flex;align-items:flex-end;gap:12px;padding:8px 12px;border-radius:22px;
+    background:rgba(18,20,36,.4);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+    box-shadow:0 0 0 1px var(--hair) inset,0 14px 40px rgba(0,0,0,.5)}
+  .dock-ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;position:relative;border:0;padding:0;color:#fff;cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .16s ease}
+  .dock-ic:hover{transform:translateY(-10px) scale(1.12)}
+  .dock-ic:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(139,140,247,.7),0 2px 8px rgba(0,0,0,.4)}
+  .dock-ic[data-tip]::after{content:attr(data-tip);position:absolute;bottom:62px;left:50%;transform:translateX(-50%) translateY(4px);
+    background:rgba(10,10,22,.92);color:#fff;font-size:11.5px;font-weight:500;padding:4px 9px;border-radius:8px;white-space:nowrap;
+    border:1px solid var(--hair);opacity:0;pointer-events:none;transition:opacity .14s,transform .14s}
+  .dock-ic:hover[data-tip]::after,.dock-ic:focus-visible[data-tip]::after{opacity:1;transform:translateX(-50%) translateY(0)}
+  .dock-ic.q{background:linear-gradient(155deg,#a78bfa,#6d5cf0)}
+  .dock-ic.open{background:linear-gradient(155deg,#5fd6ff,#2f8fe0)}
+  .dock-ic.recent{background:linear-gradient(155deg,#ffd36b,#ffa42b)}
+  .dock-ic.save{background:linear-gradient(155deg,#74e08a,#22a85b)}
+  .dock-ic.help{background:linear-gradient(155deg,#ff7a9c,#ff3b6b)}
+  .dock-ic .run{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.85)}
+
+  .dock-pop{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:70;width:min(320px,92vw);padding:10px;border-radius:16px;
+    background:rgba(20,22,40,.94);-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);
+    border:1px solid var(--hair);box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .dock-pop[hidden]{display:none}
+  .dock-pop .ph{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:600;padding:2px 6px 9px}
+  .dock-pop .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .dock-pop .gi{position:relative;border:0;background:#000;padding:0;cursor:pointer;border-radius:9px;overflow:hidden;aspect-ratio:1;box-shadow:0 0 0 1px var(--hair)}
+  .dock-pop .gi img{width:100%;height:100%;object-fit:cover;display:block}
+  .dock-pop .gi:hover{box-shadow:0 0 0 2px var(--accent)}
+  .dock-pop .empty{font-size:12.5px;color:var(--faint);padding:4px 6px 10px;text-align:center}
+
+  @media (max-width:720px){
+    body{padding:36px 10px 94px}
+    .menubar{gap:12px;padding:0 10px}
+    .menubar .mi{display:none}
+    .menu.opt{display:none}
+    /* keep dropdowns on-screen */
+    .dropdown{max-width:calc(100vw - 20px)}
+    #helpDropdown{left:auto;right:0}
+    /* window: image/result first, controls after */
+    .window{border-radius:14px}
+    .toolbar{cursor:default}
+    .winbody.on{display:flex;flex-direction:column}
+    .winbody.on .content{order:1;padding:14px}
+    .winbody.on .sidebar{order:2;border-right:0;border-top:1px solid var(--hair);padding:14px}
+    .dropzone{margin:14px;padding:34px 18px}
+    .cmp-img{max-height:300px}
+    /* action buttons: 3 across + full-width Save */
+    .actions{flex-wrap:wrap;gap:8px;justify-content:stretch;margin-top:14px}
+    .actions .btn{flex:1 1 28%;padding:11px 10px}
+    #downloadBtn{flex-basis:100%;order:5}
+    .dock{gap:10px;padding:7px 10px}
+    .dock-ic{width:44px;height:44px}
+  }
+  @media (max-width:380px){
+    .stats{gap:8px}
+    .stat .num{font-size:17px}
+    .stat .num.save{font-size:21px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+    .window::after{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="mesh"></div><div class="grain"></div>
+
+  <div class="menubar">
+    <span class="app">Quikye</span>
+    <span class="menu"><button class="mbtn" id="fileBtn" aria-haspopup="true" aria-expanded="false">File</button>
+      <div class="dropdown" id="fileDropdown" hidden>
+        <button class="dd-item" id="ddOpen">Open image…</button>
+        <div class="dd-sep"></div>
+        <div class="dd-head">Recent images</div>
+        <div class="dd-recents" id="ddRecents"><div class="dd-empty">No recent images yet</div></div>
+        <div class="dd-sep"></div>
+        <button class="dd-item" id="ddClear">Clear recent</button>
+      </div>
+    </span><span class="menu opt"><button class="mbtn" id="editBtn" aria-haspopup="true" aria-expanded="false">Edit</button>
+      <div class="dropdown" id="editDropdown" hidden>
+        <button class="dd-item" data-edit="rotL">Rotate left</button>
+        <button class="dd-item" data-edit="rotR">Rotate right</button>
+        <button class="dd-item" data-edit="flipH">Flip horizontal</button>
+        <button class="dd-item" data-edit="flipV">Flip vertical</button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-edit="reset">Reset adjustments</button>
+      </div>
+    </span><span class="menu opt"><button class="mbtn" id="imageBtn" aria-haspopup="true" aria-expanded="false">Image</button>
+      <div class="dropdown" id="imageDropdown" hidden>
+        <button class="dd-item" data-preset="hd">Fit to 1920 px (HD)</button>
+        <button class="dd-item" data-preset="thumb">Fit to 400 px (thumbnail)</button>
+        <button class="dd-item" data-preset="square">Square 1:1 (1080)</button>
+        <button class="dd-item" data-preset="email">Email-friendly (≤ 1 MB)</button>
+        <button class="dd-item" data-preset="orig">Original size</button>
+      </div>
+    </span><span class="menu"><button class="mbtn" id="helpBtn" aria-haspopup="true" aria-expanded="false">Help</button>
+      <div class="dropdown" id="helpDropdown" hidden>
+        <button class="dd-item" data-help="guide">Quick guide</button>
+        <button class="dd-item" data-help="keys">Keyboard shortcuts</button>
+        <button class="dd-item" data-help="privacy">Privacy &amp; data</button>
+        <button class="dd-item" data-help="about">About Quikye</button>
+      </div>
+    </span>
+    <span class="right">
+      <svg width="16" height="14" viewBox="0 0 16 14" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#e9ebf7" stroke-width="1.4"/><path d="M10.5 10.5l4 4" stroke="#e9ebf7" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span class="mono" id="clock">--:-- --</span>
+    </span>
+  </div>
+
+  <div class="wrap">
+    <div class="window" id="window">
+      <div class="toolbar" id="toolbar">
+        <span class="lights" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <span class="title">Quikye — Image Studio</span>
+      </div>
+
+      <div class="winbody" id="winbody">
+
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose an image or drop one here">
+          <svg class="dz-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <h2>Drop an image here</h2>
+          <p class="sub">or click to browse · or paste from clipboard</p>
+          <p class="formats">JPG · PNG · WEBP · GIF · BMP</p>
+          <input type="file" id="fileInput" accept="image/*" multiple hidden />
+        </div>
+
+        <aside class="sidebar">
+          <div class="grouplabel">Adjust</div>
+
+          <div class="field">
+            <span class="flabel">Resize by</span>
+            <div class="seg" role="group" aria-label="Resize mode">
+              <button id="modeDims" aria-pressed="true">Dimensions</button>
+              <button id="modePct" aria-pressed="false">Percent</button>
+            </div>
+          </div>
+
+          <div class="field" id="dimsField">
+            <span class="flabel">Size (pixels)</span>
+            <div class="dims">
+              <div class="grp"><small>Width</small><input type="number" id="wInput" min="1" /></div>
+              <button class="lock" id="lockBtn" aria-pressed="true" aria-label="Lock aspect ratio" title="Lock aspect ratio">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 11V7a5 5 0 0110 0v4M5 11h14v9H5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="grp"><small>Height</small><input type="number" id="hInput" min="1" /></div>
+            </div>
+          </div>
+
+          <div class="field" id="pctField" style="display:none">
+            <span class="flabel">Scale</span>
+            <div class="pct">
+              <input type="range" id="pctInput" min="5" max="100" value="100" step="5" />
+              <span class="val mono"><span id="pctVal">100</span>%</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="flabel">Output format</span>
+            <select id="formatSel">
+              <option value="smart">Smallest (auto-pick)</option>
+              <option value="image/webp">WEBP — best ratio</option>
+              <option value="image/jpeg">JPG — wide support</option>
+              <option value="image/png">PNG — lossless</option>
+              <option value="auto">Keep original</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <span class="flabel">Compress by</span>
+            <div class="seg" role="group" aria-label="Compression mode">
+              <button id="modeQuality" aria-pressed="true">Quality</button>
+              <button id="modeVisual" aria-pressed="false">Visual</button>
+              <button id="modeTarget" aria-pressed="false">Size</button>
+            </div>
+            <div id="qualityWrap" style="margin-top:12px">
+              <div class="ctrl-row" id="qualityRow">
+                <input type="range" id="qInput" min="10" max="100" value="80" step="1" />
+                <span class="val mono"><span id="qVal">80</span></span>
+              </div>
+              <p class="hint">Higher keeps more detail. 75–85 is the sweet spot where files shrink a lot with almost no visible change.</p>
+            </div>
+            <div id="visualWrap" style="margin-top:12px;display:none">
+              <p class="hint"><b style="color:var(--ink)">Visually lossless.</b> We test the result against the original and keep shrinking until you'd just start to notice — giving the smallest file that still looks identical. Takes a moment longer.</p>
+            </div>
+            <div id="targetWrap" style="margin-top:12px;display:none">
+              <div class="target-in"><input type="number" id="targetInput" min="5" value="200" /><span>KB</span></div>
+              <p class="hint">We find the highest quality that fits under your budget. PNG can't be size-targeted.</p>
+            </div>
+          </div>
+        </aside>
+
+        <main class="content">
+          <div class="stage" id="stage">
+            <div class="compare" id="compare">
+              <img id="preview" class="cmp-img" alt="Compressed result" />
+              <div class="cmp-top" id="cmpTop"><img id="imgBase" class="cmp-img" alt="Original" /></div>
+              <div class="cmp-line" id="cmpLine" role="slider" tabindex="0" aria-label="Reveal original vs compressed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                <span class="cmp-knob"><svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M4 1L1 5l3 4M10 1l3 4-3 4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              </div>
+              <span class="cmp-tag l">Original</span>
+              <span class="cmp-tag r">Compressed</span>
+            </div>
+          </div>
+          <div class="filename"><b id="fname">image</b><span class="mono" id="outDims">—</span></div>
+          <div class="guard" id="guard" hidden><span class="g-ic" id="guardIc"></span><span class="g-txt" id="guardTxt"></span></div>
+
+          <div class="meter"><i id="meterBar"></i></div>
+          <div class="stats">
+            <div class="stat"><small>Before</small><div class="num from mono" id="sizeBefore">—</div><div class="sub mono" id="dimsBefore">—</div></div>
+            <div class="stat"><small>After</small><div class="num mono grad-text" id="sizeAfter">—</div><div class="sub mono" id="dimsAfter">—</div></div>
+            <div class="stat"><small>Saved</small><div class="num save mono grad-text" id="saved">—</div><div class="sub">smaller</div></div>
+          </div>
+          <p class="encline" id="encLine">&nbsp;</p>
+
+          <div class="actions">
+            <button class="btn btn-ghost" id="resetBtn">New image</button>
+            <button class="btn btn-ghost" id="copyBtn">Copy</button>
+            <button class="btn btn-ghost" id="shareBtn" hidden>Share</button>
+            <button class="btn btn-primary" id="downloadBtn">Save image</button>
+          </div>
+        </main>
+
+      </div>
+
+      <div class="batch" id="batchView" hidden>
+        <div class="batch-bar">
+          <div class="batch-ctrls">
+            <label>Format
+              <select id="bFormat">
+                <option value="smart">Smallest</option>
+                <option value="image/webp">WEBP</option>
+                <option value="image/jpeg">JPG</option>
+                <option value="image/png">PNG</option>
+              </select>
+            </label>
+            <label>Compress
+              <select id="bMode">
+                <option value="quality">Quality 80</option>
+                <option value="visual">Visually lossless</option>
+              </select>
+            </label>
+            <label>Max side
+              <select id="bMax">
+                <option value="0">Original</option>
+                <option value="2560">2560 px</option>
+                <option value="1920">1920 px</option>
+                <option value="1280">1280 px</option>
+                <option value="800">800 px</option>
+              </select>
+            </label>
+          </div>
+          <div class="batch-sum" id="batchSum">—</div>
+        </div>
+        <div class="batch-list" id="batchList"></div>
+        <div class="actions">
+          <button class="btn btn-ghost" id="bAddBtn">Add more</button>
+          <button class="btn btn-ghost" id="bClearBtn">Clear</button>
+          <button class="btn btn-primary" id="bZipBtn" disabled>Download ZIP</button>
+        </div>
+      </div>
+    </div>
+    <footer>Quikye Image Studio · processed locally, never uploaded</footer>
+  </div>
+
+  <div class="stickies" id="stickies" aria-label="Highlights">
+    <aside class="sticky" style="--rot:2.5deg" role="note" aria-label="Privacy and savings">
+      <button class="peel" data-peel aria-label="Dismiss note">✕</button>
+      <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 11V7a5 5 0 0110 0v4M5 11h14v9H5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> Private by design</h4>
+      <p>Every image is processed right here in your browser — nothing is ever uploaded.</p>
+      <div class="rule"></div>
+      <div class="lbl">You're saving</div>
+      <div class="big" id="noteSaved">—</div>
+      <div class="detail" id="noteDetail">Drop an image to see the savings.</div>
+    </aside>
+
+    <aside class="sticky s-pink" style="--rot:-2.5deg" role="note" aria-label="Compression">
+      <button class="peel" data-peel aria-label="Dismiss note">✕</button>
+      <h4>Squeeze it down!</h4>
+      <p>Smart WebP + MozJPEG encoding shrinks photos dramatically.</p>
+      <div class="rule"></div>
+      <div class="lbl">Compresses up to</div>
+      <div class="big">90%</div>
+      <div class="detail">smaller — with no visible quality loss</div>
+    </aside>
+
+    <aside class="sticky s-mint" style="--rot:1.8deg" role="note" aria-label="Free and unlimited">
+      <button class="peel" data-peel aria-label="Dismiss note">✕</button>
+      <h4>Free &amp; unlimited</h4>
+      <p>No sign-up. No watermarks. No file limits. Works offline once it's loaded.</p>
+    </aside>
+  </div>
+
+  <div class="dock" id="dock">
+    <button class="dock-ic q" data-action="home" data-tip="Recenter window" aria-label="Recenter window"><svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M3 13h9M3 7h13M3 19h6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M16 8l5 5-5 5" stroke="#eef0fb" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="run"></span></button>
+    <button class="dock-ic open" data-action="open" data-tip="Open image" aria-label="Open image"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h3.5l2 2H19a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
+    <button class="dock-ic recent" data-action="recent" data-tip="Recent images" aria-label="Recent images"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2.5" stroke="#fff" stroke-width="1.8"/><path d="M12 8.5V12l2.5 1.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="dock-ic save" data-action="save" data-tip="Save image" aria-label="Save image"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="dock-ic help" data-action="help" data-tip="Help" aria-label="Help"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="1.7"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.7-2.5 2-2.5 3.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="17" r="1.05" fill="#fff"/></svg></button>
+  </div>
+  <div class="dock-pop" id="dockPop" hidden></div>
+
+  <div class="modal" id="helpModal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="sheet-h"><span id="helpTitle">Help</span><button class="sheet-x" id="helpClose" aria-label="Close help">✕</button></div>
+      <div class="sheet-b" id="helpBody"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var dropzone=$('dropzone'), fileInput=$('fileInput'), winbody=$('winbody'), win=$('window'),
+      preview=$('preview'), imgBase=$('imgBase'), stage=$('stage'),
+      compare=$('compare'), cmpTop=$('cmpTop'), cmpLine=$('cmpLine'),
+      modeDims=$('modeDims'), modePct=$('modePct'), dimsField=$('dimsField'), pctField=$('pctField'),
+      wInput=$('wInput'), hInput=$('hInput'), lockBtn=$('lockBtn'), pctInput=$('pctInput'), pctVal=$('pctVal'),
+      formatSel=$('formatSel'), modeQuality=$('modeQuality'), modeTarget=$('modeTarget'), modeVisual=$('modeVisual'),
+      qualityWrap=$('qualityWrap'), targetWrap=$('targetWrap'), visualWrap=$('visualWrap'), qualityRow=$('qualityRow'),
+      qInput=$('qInput'), qVal=$('qVal'), targetInput=$('targetInput'),
+      fname=$('fname'), outDims=$('outDims'), meterBar=$('meterBar'),
+      sizeBefore=$('sizeBefore'), sizeAfter=$('sizeAfter'), dimsBefore=$('dimsBefore'), dimsAfter=$('dimsAfter'),
+      saved=$('saved'), encLine=$('encLine'), downloadBtn=$('downloadBtn'), resetBtn=$('resetBtn'),
+      copyBtn=$('copyBtn'), shareBtn=$('shareBtn'), clock=$('clock'),
+      batchView=$('batchView'), batchList=$('batchList'), batchSum=$('batchSum'),
+      bFormat=$('bFormat'), bMode=$('bMode'), bMax=$('bMax'),
+      bAddBtn=$('bAddBtn'), bClearBtn=$('bClearBtn'), bZipBtn=$('bZipBtn');
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var state={ bitmap:null, baseName:'image', origType:'image/png', origW:0, origH:0, origSize:0,
+              mode:'dimensions', compMode:'quality', lock:true, outBlob:null, outURL:null, outExt:'png' };
+  var debounceTimer=null, runToken=0;
+
+  var jpegEnc=undefined;
+  function getJpegEncoder(){
+    if(jpegEnc!==undefined) return Promise.resolve(jpegEnc);
+    return import('https://esm.sh/@jsquash/jpeg@1.5.0?bundle')
+      .then(function(m){ jpegEnc=(m&&m.encode)?m.encode:false; return jpegEnc; })
+      .catch(function(){ jpegEnc=false; return false; });
+  }
+
+  function fmtBytes(b){ if(b<1024) return Math.round(b)+' B'; if(b<1048576) return (b/1024).toFixed(b/1024<10?1:0)+' KB'; return (b/1048576).toFixed(2)+' MB'; }
+  function isImage(f){ return f && /^image\//.test(f.type); }
+  function extFor(fmt){ return fmt==='image/jpeg'?'jpg':fmt==='image/webp'?'webp':'png'; }
+
+  /* ----- compare slider ----- */
+  function setCompare(p){ p=Math.max(0,Math.min(100,p)); cmpTop.style.clipPath='inset(0 '+(100-p)+'% 0 0)'; cmpLine.style.left=p+'%'; cmpLine.setAttribute('aria-valuenow',Math.round(p)); }
+  function dragPos(clientX){ var r=compare.getBoundingClientRect(); if(!r.width) return; setCompare(((clientX-r.left)/r.width)*100); }
+  var dragging=false;
+  compare.addEventListener('pointerdown',function(e){ dragging=true; compare.setPointerCapture(e.pointerId); dragPos(e.clientX); e.preventDefault(); });
+  compare.addEventListener('pointermove',function(e){ if(dragging) dragPos(e.clientX); });
+  compare.addEventListener('pointerup',function(){ dragging=false; });
+  compare.addEventListener('pointercancel',function(){ dragging=false; });
+  cmpLine.addEventListener('keydown',function(e){ var cur=parseFloat(cmpLine.getAttribute('aria-valuenow'))||50; if(e.key==='ArrowLeft'){ setCompare(cur-3); e.preventDefault(); } else if(e.key==='ArrowRight'){ setCompare(cur+3); e.preventDefault(); } });
+
+  /* ----- count-up ----- */
+  function animBytes(el,to){ if(reduced){ el.textContent=fmtBytes(to); el._v=to; return; } var from=el._v||0,t0=performance.now(); function f(now){ var k=Math.min(1,(now-t0)/450),e=1-Math.pow(1-k,3),v=from+(to-from)*e; el.textContent=fmtBytes(v); if(k<1) requestAnimationFrame(f); else el._v=to; } el._v=to; requestAnimationFrame(f); }
+  function animPct(el,to,sign){ if(reduced){ el.textContent=(sign||'')+Math.round(to)+'%'; el._v=to; return; } var from=el._v||0,t0=performance.now(); function f(now){ var k=Math.min(1,(now-t0)/500),e=1-Math.pow(1-k,3),v=from+(to-from)*e; el.textContent=(sign||'')+Math.round(v)+'%'; if(k<1) requestAnimationFrame(f); else el._v=to; } el._v=to; requestAnimationFrame(f); }
+
+  /* ----- toast / feedback ----- */
+  var toastTimer=null, toastEl=null;
+  function toast(msg){ if(!toastEl){ toastEl=document.createElement('div'); toastEl.className='toast'; document.body.appendChild(toastEl); } toastEl.textContent=msg; requestAnimationFrame(function(){ toastEl.classList.add('show'); }); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ toastEl.classList.remove('show'); },1700); }
+  function flashLabel(btn,t){ var o=btn.textContent; btn.textContent=t; setTimeout(function(){ btn.textContent=o; },1400); }
+  function flash(msg){ var h2=dropzone.querySelector('h2'),p=h2.textContent; h2.textContent=msg; h2.style.color='#ff8a9b'; setTimeout(function(){ h2.textContent=p; h2.style.color=''; },2600); }
+
+  /* ----- recent images (persists where storage is available; in-memory otherwise) ----- */
+  var recents=[]; var RECENT_KEY='quikye_recent_v1';
+  function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } }
+  function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  function loadRecents(){ var s=lsGet(RECENT_KEY); try{ recents=s?JSON.parse(s):[]; }catch(e){ recents=[]; } if(!Array.isArray(recents)) recents=[]; }
+  function saveRecents(){ if(lsSet(RECENT_KEY,JSON.stringify(recents))) return; var t=recents.slice(0,4); if(lsSet(RECENT_KEY,JSON.stringify(t))) recents=t; }
+  function thumbOf(img){ var m=84,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h)); var c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w*s)); c.height=Math.max(1,Math.round(h*s)); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ return c.toDataURL('image/jpeg',0.7); }catch(e){ return ''; } }
+  function fullOf(img,dataURL,size){ if(size && size<1500000) return dataURL; var m=1920,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h)); if(s>=1) return dataURL; var c=document.createElement('canvas'); c.width=Math.round(w*s); c.height=Math.round(h*s); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ return c.toDataURL('image/jpeg',0.85); }catch(e){ return dataURL; } }
+  function addRecent(name,size,img,dataURL){
+    var key=(name||'image')+'|'+(size||0);
+    recents=recents.filter(function(r){ return (r.name+'|'+r.size)!==key; });
+    recents.unshift({ name:name||'image', size:size||0, thumb:thumbOf(img), full:fullOf(img,dataURL,size) });
+    if(recents.length>6) recents=recents.slice(0,6);
+    saveRecents(); renderRecents();
+  }
+  function renderRecents(){
+    var box=$('ddRecents'); if(!box) return;
+    if(!recents.length){ box.innerHTML='<div class="dd-empty">No recent images yet</div>'; return; }
+    box.innerHTML='';
+    recents.forEach(function(r){
+      var b=document.createElement('button'); b.className='dd-rec';
+      b.innerHTML='<img alt="" src="'+r.thumb+'"><span class="nm"></span><span class="sz">'+(r.size?fmtBytes(r.size):'')+'</span>';
+      b.querySelector('.nm').textContent=r.name;
+      b.addEventListener('click',function(){ closeFileMenu(); ingest(r.full, r.name, r.size, 'image/jpeg', true); });
+      box.appendChild(b);
+    });
+  }
+
+  function ingest(dataURL,name,size,type,fromRecent){
+    var img=new Image();
+    img.onload=function(){
+      state.bitmap=img; state.original=img; state.origW=img.naturalWidth; state.origH=img.naturalHeight;
+      state.origSize=size||0; state.origType=type||'image/png';
+      state.originalBlob=blobFromDataURL(dataURL);
+      state.baseName=(name||'image').replace(/\.[^.]+$/,'');
+      imgBase.src=img.src;
+      wInput.value=state.origW; hInput.value=state.origH; pctInput.value=100; pctVal.textContent='100';
+      sizeBefore.textContent=state.origSize?fmtBytes(state.origSize):'—'; sizeBefore._v=state.origSize; dimsBefore.textContent=state.origW+'×'+state.origH;
+      sizeAfter._v=0; saved._v=0;
+      fname.textContent=(name||'image'); winbody.classList.add('on'); batchView.hidden=true; setCompare(50);
+      updateGuard(dataURL, type);
+      if(!fromRecent) addRecent(name,size,img,dataURL);
+      process();
+    };
+    img.onerror=function(){ flash('Could not read that image.'); };
+    img.src=dataURL;
+  }
+
+  function loadFile(file){
+    if(!isImage(file)){ flash('That file is not an image.'); return; }
+    var reader=new FileReader();
+    reader.onload=function(){ ingest(reader.result, file.name, file.size, file.type); };
+    reader.readAsDataURL(file);
+  }
+
+  function targetDims(){ var tw,th; if(state.mode==='percent'){ var s=parseInt(pctInput.value,10)/100; tw=Math.max(1,Math.round(state.origW*s)); th=Math.max(1,Math.round(state.origH*s)); } else { tw=Math.max(1,parseInt(wInput.value,10)||state.origW); th=Math.max(1,parseInt(hInput.value,10)||state.origH); } return {w:tw,h:th}; }
+
+  function drawTo(tw,th,fillWhite){
+    var cur=state.bitmap,curW=state.origW,curH=state.origH;
+    while(curW>tw*2 && curH>th*2){ var nw=Math.max(tw,Math.floor(curW/2)),nh=Math.max(th,Math.floor(curH/2)); var s=document.createElement('canvas'); s.width=nw; s.height=nh; var sc=s.getContext('2d'); sc.imageSmoothingEnabled=true; sc.imageSmoothingQuality='high'; sc.drawImage(cur,0,0,nw,nh); cur=s; curW=nw; curH=nh; }
+    var c=document.createElement('canvas'); c.width=tw; c.height=th; var ctx=c.getContext('2d');
+    if(fillWhite){ ctx.fillStyle='#fff'; ctx.fillRect(0,0,tw,th); }
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(cur,0,0,tw,th); return c;
+  }
+
+  var lastEncoderUsed='native';
+  function encode(canvas,fmt,quality){
+    if(fmt==='image/jpeg'){ return getJpegEncoder().then(function(enc){
+      if(enc){ try{ var ctx=canvas.getContext('2d'),id=ctx.getImageData(0,0,canvas.width,canvas.height); return Promise.resolve(enc(id,{quality:Math.round(quality*100)})).then(function(buf){ lastEncoderUsed='MozJPEG'; return new Blob([buf],{type:'image/jpeg'}); }); }catch(e){} }
+      lastEncoderUsed='native'; return new Promise(function(res){ canvas.toBlob(res,fmt,quality); }); }); }
+    return new Promise(function(res){ canvas.toBlob(res,fmt,quality); });
+  }
+  function encodeToTarget(canvas,fmt,targetBytes){ var lo=0.35,hi=0.96,best=null,a=0; function step(){ if(a>=7) return best?Promise.resolve(best):encode(canvas,fmt,lo); a++; var q=(lo+hi)/2; return encode(canvas,fmt,q).then(function(b){ if(b.size>targetBytes) hi=q; else { best=b; lo=q; } return step(); }); } return step(); }
+
+  /* ----- visually-lossless (SSIM-guided) ----- */
+  function lumaScaled(src,w0,h0){ var max=420,s=Math.min(1,max/Math.max(w0,h0)); var w=Math.max(1,Math.round(w0*s)),h=Math.max(1,Math.round(h0*s)); var c=document.createElement('canvas'); c.width=w; c.height=h; var x=c.getContext('2d'); x.drawImage(src,0,0,w,h); var dat=x.getImageData(0,0,w,h).data,n=w*h,g=new Float64Array(n); for(var i=0,j=0;i<n;i++,j+=4){ g[i]=0.299*dat[j]+0.587*dat[j+1]+0.114*dat[j+2]; } return {g:g,w:w,h:h}; }
+  function ssim(a,b){ if(a.w!==b.w||a.h!==b.h) return 0; var W=a.w,H=a.h,win=8,C1=6.5025,C2=58.5225,tot=0,cnt=0; for(var y=0;y+win<=H;y+=win){ for(var x=0;x+win<=W;x+=win){ var ma=0,mb=0,k,i,idx; for(k=0;k<win;k++)for(i=0;i<win;i++){ idx=(y+k)*W+(x+i); ma+=a.g[idx]; mb+=b.g[idx]; } var nn=win*win; ma/=nn; mb/=nn; var va=0,vb=0,cov=0; for(k=0;k<win;k++)for(i=0;i<win;i++){ idx=(y+k)*W+(x+i); var da=a.g[idx]-ma,db=b.g[idx]-mb; va+=da*da; vb+=db*db; cov+=da*db; } va/=nn-1; vb/=nn-1; cov/=nn-1; tot+=((2*ma*mb+C1)*(2*cov+C2))/((ma*ma+mb*mb+C1)*(va+vb+C2)); cnt++; } } return cnt?tot/cnt:1; }
+  function encodeVisual(canvas,fmt){
+    if(fmt==='image/png') return encode(canvas,fmt,1);
+    var ref=lumaScaled(canvas,canvas.width,canvas.height), T=0.985, lo=0.42, hi=0.94, best=null, it=0;
+    function step(){
+      if(it>=5) return best?Promise.resolve(best):encode(canvas,fmt,hi);
+      it++; var q=(lo+hi)/2;
+      return encode(canvas,fmt,q).then(function(blob){
+        return createImageBitmap(blob).then(function(bmp){
+          var test=lumaScaled(bmp,bmp.width,bmp.height); if(bmp.close) bmp.close();
+          if(ssim(ref,test)>=T){ best=blob; hi=q; } else { lo=q; }
+          return step();
+        }).catch(function(){ best=blob; return blob; });
+      });
+    }
+    return step();
+  }
+
+  function candidateFormats(){ var v=formatSel.value; if(v==='smart') return ['image/webp','image/jpeg']; if(v==='auto') return [/jpeg|png|webp/.test(state.origType)?state.origType:'image/png']; return [v]; }
+
+  function setBusy(b){ stage.classList.toggle('busy',b); downloadBtn.disabled=b; copyBtn.disabled=b; shareBtn.disabled=b; }
+
+  function process(){
+    if(!state.bitmap) return;
+    var token=++runToken, d=targetDims(), fmts=candidateFormats();
+    qualityRow.classList.toggle('dim', !fmts.some(function(f){return f==='image/jpeg'||f==='image/webp';}));
+    setBusy(true);
+    function enc1(fmt){ var canvas=drawTo(d.w,d.h,fmt==='image/jpeg');
+      if(state.compMode==='visual') return encodeVisual(canvas,fmt).then(function(b){return{fmt:fmt,blob:b};});
+      if(state.compMode==='target'&&fmt!=='image/png'){ var t=Math.max(3,parseInt(targetInput.value,10)||200)*1024; return encodeToTarget(canvas,fmt,t).then(function(b){return{fmt:fmt,blob:b};}); }
+      var q=parseInt(qInput.value,10)/100; return encode(canvas,fmt,q).then(function(b){return{fmt:fmt,blob:b};}); }
+    Promise.all(fmts.map(enc1)).then(function(results){
+      if(token!==runToken) return;
+      results.sort(function(a,b){return a.blob.size-b.blob.size;});
+      var w=results[0];
+      // Don't make it worse: if auto-picking at the original size and nothing beats
+      // the source, keep the original file rather than emit a larger one.
+      var autoPick=(formatSel.value==='smart'||formatSel.value==='auto');
+      var sameDims=(d.w===state.origW && d.h===state.origH);
+      var kept=false;
+      if(autoPick && sameDims && state.originalBlob && state.origSize>0 && w.blob.size>=state.origSize){
+        w={fmt:state.origType, blob:state.originalBlob}; kept=true;
+      }
+      if(state.outURL) URL.revokeObjectURL(state.outURL);
+      state.outBlob=w.blob; state.outURL=URL.createObjectURL(w.blob); state.outExt=extFor(w.fmt);
+      preview.src=state.outURL;
+      animBytes(sizeAfter,w.blob.size); dimsAfter.textContent=d.w+'×'+d.h; outDims.textContent=d.w+' × '+d.h+' px';
+      updateNote(state.origSize, w.blob.size);
+      var ratio=state.origSize?(w.blob.size/state.origSize):1, savePct=Math.max(0,Math.round((1-ratio)*100));
+      animPct(saved,savePct,''); meterBar.style.width=Math.max(2,Math.min(100,ratio*100))+'%';
+      var label=w.fmt==='image/jpeg'?'JPG':w.fmt==='image/webp'?'WEBP':'PNG';
+      if(kept){ encLine.innerHTML='Already optimized · kept your original <b>'+label+'</b>'; }
+      else { var enc=(w.fmt==='image/jpeg'&&lastEncoderUsed==='MozJPEG')?'<span class="badge">MozJPEG</span>':'';
+        encLine.innerHTML=(savePct>0?'Output: ':'No smaller version · ')+'<b>'+label+'</b> '+enc+(formatSel.value==='smart'&&savePct>0?' · chosen as smallest':''); }
+      setBusy(false);
+    }).catch(function(){ setBusy(false); });
+  }
+
+  function reprocess(){ clearTimeout(debounceTimer); debounceTimer=setTimeout(process,110); }
+  function onW(){ if(state.lock&&state.origW){ var r=state.origH/state.origW; hInput.value=Math.max(1,Math.round(parseInt(wInput.value,10)*r)); } reprocess(); }
+  function onH(){ if(state.lock&&state.origH){ var r=state.origW/state.origH; wInput.value=Math.max(1,Math.round(parseInt(hInput.value,10)*r)); } reprocess(); }
+
+  function copyToClipboard(){
+    if(!state.bitmap||!navigator.clipboard||!window.ClipboardItem){ toast('Copy isn’t supported in this browser'); return; }
+    var d=targetDims(); drawTo(d.w,d.h,false).toBlob(function(png){ if(!png){ toast('Couldn’t copy this image'); return; }
+      try{ navigator.clipboard.write([new ClipboardItem({'image/png':png})]).then(function(){ flashLabel(copyBtn,'Copied!'); toast('Copied to clipboard'); }).catch(function(){ toast('Clipboard blocked — try Save instead'); }); }
+      catch(e){ toast('Copy isn’t supported in this browser'); } },'image/png');
+  }
+  function shareImage(){ if(!state.outBlob) return; var file=new File([state.outBlob],state.baseName+'-quikye.'+state.outExt,{type:state.outBlob.type}); if(navigator.canShare&&navigator.canShare({files:[file]})){ navigator.share({files:[file],title:'Quikye image'}).catch(function(){}); } else toast('Sharing isn’t supported here'); }
+  (function(){ try{ var p=new File([new Blob([''],{type:'image/png'})],'p.png',{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[p]})) shareBtn.hidden=false; }catch(e){} })();
+
+  dropzone.addEventListener('click',function(){ fileInput.click(); });
+  dropzone.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change',function(e){ handleFiles(e.target.files); });
+  ['dragenter','dragover'].forEach(function(ev){ dropzone.addEventListener(ev,function(e){ e.preventDefault(); dropzone.classList.add('drag'); }); });
+  ['dragleave','drop'].forEach(function(ev){ dropzone.addEventListener(ev,function(e){ e.preventDefault(); dropzone.classList.remove('drag'); }); });
+  dropzone.addEventListener('drop',function(e){ handleFiles(e.dataTransfer.files); });
+  window.addEventListener('paste',function(e){ var it=e.clipboardData&&e.clipboardData.items; if(!it) return; for(var i=0;i<it.length;i++){ if(it[i].type.indexOf('image')===0){ loadFile(it[i].getAsFile()); break; } } });
+
+  function applyResizeMode(m){ state.mode=m; var d=(m==='dimensions'); modeDims.setAttribute('aria-pressed',String(d)); modePct.setAttribute('aria-pressed',String(!d)); dimsField.style.display=d?'':'none'; pctField.style.display=d?'none':''; }
+  function applyCompressMode(m){ state.compMode=m;
+    modeQuality.setAttribute('aria-pressed',String(m==='quality'));
+    modeVisual.setAttribute('aria-pressed',String(m==='visual'));
+    modeTarget.setAttribute('aria-pressed',String(m==='target'));
+    qualityWrap.style.display=m==='quality'?'':'none';
+    visualWrap.style.display=m==='visual'?'':'none';
+    targetWrap.style.display=m==='target'?'':'none';
+  }
+  modeDims.addEventListener('click',function(){ applyResizeMode('dimensions'); process(); });
+  modePct.addEventListener('click',function(){ applyResizeMode('percent'); process(); });
+  modeQuality.addEventListener('click',function(){ applyCompressMode('quality'); process(); });
+  modeVisual.addEventListener('click',function(){ applyCompressMode('visual'); process(); });
+  modeTarget.addEventListener('click',function(){ applyCompressMode('target'); process(); });
+
+  lockBtn.addEventListener('click',function(){ state.lock=!state.lock; lockBtn.setAttribute('aria-pressed',String(state.lock)); });
+  wInput.addEventListener('input',onW); hInput.addEventListener('input',onH);
+  pctInput.addEventListener('input',function(){ pctVal.textContent=pctInput.value; reprocess(); });
+  formatSel.addEventListener('change',process);
+  qInput.addEventListener('input',function(){ qVal.textContent=qInput.value; reprocess(); });
+  targetInput.addEventListener('input',reprocess);
+
+  downloadBtn.addEventListener('click',function(){ if(!state.outBlob) return; var a=document.createElement('a'); a.href=state.outURL; a.download=state.baseName+'-quikye.'+state.outExt; document.body.appendChild(a); a.click(); document.body.removeChild(a); toast('Saved to your downloads'); });
+  copyBtn.addEventListener('click',copyToClipboard);
+  shareBtn.addEventListener('click',shareImage);
+  resetBtn.addEventListener('click',function(){ state.bitmap=null; if(state.outURL){ URL.revokeObjectURL(state.outURL); state.outURL=null; } winbody.classList.remove('on'); fileInput.value=''; formatSel.value='smart'; qInput.value=80; qVal.textContent='80'; targetInput.value=200; encLine.innerHTML='&nbsp;'; clearNote(); });
+
+  if(!reduced){ win.addEventListener('pointermove',function(e){ var r=win.getBoundingClientRect(); win.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%'); win.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%'); }); }
+
+  function tick(){ if(!clock) return; var ds=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],d=new Date(),h=d.getHours(),m=d.getMinutes(),ap=h<12?'AM':'PM',hh=h%12; if(hh===0)hh=12; clock.textContent=ds[d.getDay()]+' '+hh+':'+(m<10?'0':'')+m+' '+ap; }
+  tick(); setInterval(tick,15000);
+  /* ----- draggable window (grab the title bar) ----- */
+  var recenterWindow=function(){};
+  (function(){
+    var toolbar=$('toolbar'), wrap=document.querySelector('.wrap');
+    var winDragging=false, offX=0, offY=0, floated=false;
+
+    recenterWindow=function(){
+      win.style.position=''; win.style.left=''; win.style.top=''; win.style.width=''; win.style.margin='';
+      win.classList.remove('floating');
+      if(wrap) wrap.style.height='';
+      floated=false;
+    };
+
+    function detach(){
+      var r=win.getBoundingClientRect();
+      if(wrap){ wrap.style.height=wrap.offsetHeight+'px'; } // freeze flow so footer doesn't jump
+      win.style.position='fixed';
+      win.style.width=r.width+'px';
+      win.style.left=r.left+'px';
+      win.style.top=r.top+'px';
+      win.style.margin='0';
+      win.classList.add('floating');
+      floated=true;
+    }
+    function clamp(x,y){
+      var r=win.getBoundingClientRect();
+      var maxX=window.innerWidth-140, minX=-(r.width-140);
+      var maxY=window.innerHeight-46, minY=4;
+      return [Math.max(minX,Math.min(maxX,x)), Math.max(minY,Math.min(maxY,y))];
+    }
+    toolbar.addEventListener('pointerdown',function(e){
+      if(window.innerWidth<=720) return;            // no window-dragging on phones
+      if(e.button!==undefined && e.button!==0) return;
+      if(!floated) detach();
+      var r=win.getBoundingClientRect();
+      offX=e.clientX-r.left; offY=e.clientY-r.top;
+      winDragging=true;
+      try{ toolbar.setPointerCapture(e.pointerId); }catch(_){}
+      document.body.classList.add('dragging-win');
+      e.preventDefault();
+    });
+    toolbar.addEventListener('pointermove',function(e){
+      if(!winDragging) return;
+      var c=clamp(e.clientX-offX, e.clientY-offY);
+      win.style.left=c[0]+'px'; win.style.top=c[1]+'px';
+    });
+    function endDrag(){ winDragging=false; document.body.classList.remove('dragging-win'); }
+    toolbar.addEventListener('pointerup',endDrag);
+    toolbar.addEventListener('pointercancel',endDrag);
+
+    // keep it on screen if the viewport shrinks
+    window.addEventListener('resize',function(){
+      if(!floated) return;
+      var r=win.getBoundingClientRect();
+      var c=clamp(r.left,r.top);
+      win.style.left=c[0]+'px'; win.style.top=c[1]+'px';
+    });
+  })();
+
+  /* ----- File menu ----- */
+  var fileBtn,fileDropdown;
+  function openFileMenu(){ closeAllMenus(); renderRecents(); fileDropdown.hidden=false; fileBtn.setAttribute('aria-expanded','true'); }
+  function closeFileMenu(){ if(fileDropdown){ fileDropdown.hidden=true; fileBtn.setAttribute('aria-expanded','false'); } }
+  (function setupFileMenu(){
+    fileBtn=$('fileBtn'); fileDropdown=$('fileDropdown'); if(!fileBtn) return;
+    loadRecents(); renderRecents();
+    fileBtn.addEventListener('click',function(e){ e.stopPropagation(); if(fileDropdown.hidden) openFileMenu(); else closeFileMenu(); });
+    $('ddOpen').addEventListener('click',function(){ closeFileMenu(); fileInput.click(); });
+    $('ddClear').addEventListener('click',function(){ recents=[]; lsDel(RECENT_KEY); renderRecents(); });
+    document.addEventListener('click',function(e){ if(fileDropdown && !fileDropdown.hidden && !fileDropdown.contains(e.target) && e.target!==fileBtn) closeFileMenu(); });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeFileMenu(); });
+  })();
+
+  /* ----- Help menu + modal ----- */
+  var helpBtn,helpDropdown,helpModal,helpBody,helpTitle;
+  var modKey = (navigator.platform&&/mac/i.test(navigator.platform))?'⌘':'Ctrl';
+  var HELP={
+    guide:{ t:'Quick guide', h:'<ol>'+
+      '<li>Drop an image onto the window, click to browse, or paste one from your clipboard.</li>'+
+      '<li><b>Resize</b> by exact pixels or by percent — the lock keeps the aspect ratio.</li>'+
+      '<li>Pick a <b>format</b>. “Smallest (auto-pick)” encodes WebP and JPG and keeps whichever is smaller.</li>'+
+      '<li>Compress <b>by quality</b>, or switch to <b>Target size</b> and we find the best quality under your KB budget.</li>'+
+      '<li>Drag the divider across the preview to compare the <b>original vs compressed</b>.</li>'+
+      '<li><b>Save</b>, <b>Copy</b>, or <b>Share</b> the result. Reopen anything from <b>File ▸ Recent</b>.</li>'+
+      '</ol>' },
+    keys:{ t:'Keyboard shortcuts', h:''+
+      row('Open image','<kbd>O</kbd>')+
+      row('Save image','<kbd>S</kbd>','<kbd>'+modKey+'</kbd><kbd>S</kbd>')+
+      row('Copy to clipboard','<kbd>C</kbd>')+
+      row('New image','<kbd>N</kbd>')+
+      row('Move the compare slider','<kbd>←</kbd><kbd>→</kbd>')+
+      row('Load image from clipboard','<kbd>'+modKey+'</kbd><kbd>V</kbd>')+
+      row('Show this list','<kbd>?</kbd>')+
+      row('Close menus / dialog','<kbd>Esc</kbd>')+
+      '<p style="margin-top:14px">Single-key shortcuts work when you’re not typing in a field. You can also drag the window by its title bar.</p>' },
+    privacy:{ t:'Privacy & data', h:''+
+      '<p><b>Your images never leave your device.</b> All resizing, conversion and compression happens right here in your browser — nothing is uploaded to any server.</p>'+
+      '<p><b>Recent images</b> are saved only in this browser’s local storage on your own device, so they survive reloads. Clear them anytime with <b>File ▸ Clear recent</b>.</p>'+
+      '<p>For better JPG compression, the MozJPEG encoder may load once from a public code CDN. Only program code is fetched — your image data is never sent anywhere.</p>' },
+    about:{ t:'About Quikye', h:''+
+      '<p><b>Quikye — Image Studio.</b> A fast, private, in-browser tool to resize, convert and compress images, built as a single self-contained page.</p>'+
+      '<p>Smart format auto-pick · MozJPEG · target-size compression · before/after compare · works fully offline once loaded.</p>'+
+      '<p style="color:var(--faint)">quikye.image-studio</p>' }
+  };
+  function row(label,k1,k2){ return '<div class="keys-row"><span class="lbl">'+label+'</span><span class="k">'+(k1||'')+(k2?' <span style="color:var(--faint)">or</span> '+k2:'')+'</span></div>'; }
+
+  function openHelp(key){
+    var c=HELP[key]||HELP.guide;
+    helpTitle.textContent=c.t; helpBody.innerHTML=c.h;
+    helpModal.hidden=false; closeHelpMenu();
+    try{ $('helpClose').focus(); }catch(e){}
+  }
+  function closeHelp(){ if(helpModal) helpModal.hidden=true; }
+  function closeHelpMenu(){ if(helpDropdown){ helpDropdown.hidden=true; helpBtn.setAttribute('aria-expanded','false'); } }
+  (function setupHelp(){
+    helpBtn=$('helpBtn'); helpDropdown=$('helpDropdown'); helpModal=$('helpModal'); helpBody=$('helpBody'); helpTitle=$('helpTitle');
+    if(!helpBtn) return;
+    helpBtn.addEventListener('click',function(e){ e.stopPropagation(); if(helpDropdown.hidden){ closeAllMenus(); helpDropdown.hidden=false; helpBtn.setAttribute('aria-expanded','true'); } else closeHelpMenu(); });
+    helpDropdown.querySelectorAll('[data-help]').forEach(function(b){ b.addEventListener('click',function(){ openHelp(b.getAttribute('data-help')); }); });
+    $('helpClose').addEventListener('click',closeHelp);
+    helpModal.addEventListener('click',function(e){ if(e.target===helpModal) closeHelp(); });
+    document.addEventListener('click',function(e){ if(helpDropdown && !helpDropdown.hidden && !helpDropdown.contains(e.target) && e.target!==helpBtn) closeHelpMenu(); });
+  })();
+
+  /* ----- global keyboard shortcuts ----- */
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){ closeHelp(); closeAllMenus(); hideDockPop&&hideDockPop(); return; }
+    if((e.metaKey||e.ctrlKey) && (e.key==='s'||e.key==='S')){ if(state.outBlob){ e.preventDefault(); downloadBtn.click(); } return; }
+    var t=e.target, tag=t&&t.tagName, typing = tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA'||(t&&t.isContentEditable);
+    if(typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if(!helpModal.hidden && e.key!=='?') return;
+    var k=e.key.toLowerCase();
+    if(k==='o'){ e.preventDefault(); fileInput.click(); }
+    else if(k==='n'){ e.preventDefault(); resetBtn.click(); }
+    else if(k==='c'){ if(state.bitmap){ e.preventDefault(); copyBtn.click(); } }
+    else if(k==='s'){ if(state.outBlob){ e.preventDefault(); downloadBtn.click(); } }
+    else if(e.key==='?'){ e.preventDefault(); openHelp('keys'); }
+  });
+
+  /* ----- Edit: transforms (baked into the working source) ----- */
+  function finishTransform(canvas,swapped){
+    state.bitmap=canvas; state.origW=canvas.width; state.origH=canvas.height;
+    try{ imgBase.src=canvas.toDataURL('image/png'); }catch(e){}
+    if(state.mode==='dimensions' && swapped){ var t=wInput.value; wInput.value=hInput.value; hInput.value=t; }
+    dimsBefore.textContent=state.origW+'×'+state.origH; setCompare(50);
+  }
+  function bakeRotate(dir){ if(!state.bitmap) return; var w=state.origW,h=state.origH; var c=document.createElement('canvas'); c.width=h; c.height=w; var x=c.getContext('2d'); x.imageSmoothingEnabled=false; x.translate(c.width/2,c.height/2); x.rotate(dir*Math.PI/2); x.drawImage(state.bitmap,-w/2,-h/2); finishTransform(c,true); }
+  function bakeFlip(axis){ if(!state.bitmap) return; var w=state.origW,h=state.origH; var c=document.createElement('canvas'); c.width=w; c.height=h; var x=c.getContext('2d'); x.imageSmoothingEnabled=false; x.translate(axis==='h'?w:0, axis==='v'?h:0); x.scale(axis==='h'?-1:1, axis==='v'?-1:1); x.drawImage(state.bitmap,0,0); finishTransform(c,false); }
+  function bakeSquare(){ if(!state.bitmap) return; var w=state.origW,h=state.origH,s=Math.min(w,h),sx=(w-s)/2,sy=(h-s)/2; var c=document.createElement('canvas'); c.width=s; c.height=s; var x=c.getContext('2d'); x.imageSmoothingEnabled=false; x.drawImage(state.bitmap,sx,sy,s,s,0,0,s,s); finishTransform(c,false); }
+  function resetAdjust(){
+    if(!state.original) return;
+    state.bitmap=state.original; state.origW=state.original.naturalWidth; state.origH=state.original.naturalHeight;
+    try{ imgBase.src=state.original.src; }catch(e){}
+    applyResizeMode('dimensions'); applyCompressMode('quality');
+    wInput.value=state.origW; hInput.value=state.origH; pctInput.value=100; pctVal.textContent='100';
+    state.lock=true; lockBtn.setAttribute('aria-pressed','true');
+    formatSel.value='smart'; qInput.value=80; qVal.textContent='80'; targetInput.value=200;
+    dimsBefore.textContent=state.origW+'×'+state.origH; setCompare(50);
+  }
+  function doEdit(action){
+    if(!state.bitmap){ toast('Open an image first'); return; }
+    if(action==='rotL') bakeRotate(-1);
+    else if(action==='rotR') bakeRotate(1);
+    else if(action==='flipH') bakeFlip('h');
+    else if(action==='flipV') bakeFlip('v');
+    else if(action==='reset'){ resetAdjust(); toast('Adjustments reset'); }
+    process();
+  }
+
+  /* ----- Image: one-tap presets ----- */
+  function fitWithin(max){ applyResizeMode('dimensions'); state.lock=true; lockBtn.setAttribute('aria-pressed','true'); var w=state.origW,h=state.origH,s=Math.min(1,max/Math.max(w,h)); wInput.value=Math.max(1,Math.round(w*s)); hInput.value=Math.max(1,Math.round(h*s)); }
+  function doPreset(p){
+    if(!state.bitmap){ toast('Open an image first'); return; }
+    if(p==='hd'){ fitWithin(1920); toast('Fit to 1920 px'); }
+    else if(p==='thumb'){ fitWithin(400); toast('Thumbnail · 400 px'); }
+    else if(p==='square'){ bakeSquare(); applyResizeMode('dimensions'); state.lock=true; lockBtn.setAttribute('aria-pressed','true'); wInput.value=1080; hInput.value=1080; toast('Square 1:1 · 1080 px'); }
+    else if(p==='email'){ applyCompressMode('target'); targetInput.value=950; formatSel.value='smart'; toast('Targeting under 1 MB'); }
+    else if(p==='orig'){ applyResizeMode('dimensions'); wInput.value=state.origW; hInput.value=state.origH; toast('Original size'); }
+    process();
+  }
+
+  /* ----- unified menu bar ----- */
+  function closeAllMenus(){
+    var dd=document.querySelectorAll('.menubar .dropdown'); for(var i=0;i<dd.length;i++) dd[i].hidden=true;
+    var bb=document.querySelectorAll('.menubar .mbtn'); for(var j=0;j<bb.length;j++) bb[j].setAttribute('aria-expanded','false');
+  }
+  function bindMenu(btnId,ddId,onOpen){
+    var b=$(btnId), d=$(ddId); if(!b||!d) return;
+    b.addEventListener('click',function(e){ e.stopPropagation(); var wasOpen=!d.hidden; closeAllMenus(); if(!wasOpen){ if(onOpen) onOpen(); d.hidden=false; b.setAttribute('aria-expanded','true'); } });
+  }
+  bindMenu('editBtn','editDropdown');
+  bindMenu('imageBtn','imageDropdown');
+  document.querySelectorAll('#editDropdown [data-edit]').forEach(function(b){ b.addEventListener('click',function(){ closeAllMenus(); doEdit(b.getAttribute('data-edit')); }); });
+  document.querySelectorAll('#imageDropdown [data-preset]').forEach(function(b){ b.addEventListener('click',function(){ closeAllMenus(); doPreset(b.getAttribute('data-preset')); }); });
+  document.addEventListener('click',function(e){ if(!(e.target&&e.target.closest&&e.target.closest('.menu'))) closeAllMenus(); });
+
+  /* ----- Dock actions ----- */
+  var dock=$('dock'), dockPop=$('dockPop');
+  function renderDockPop(){
+    var html='<div class="ph">Recent images</div>';
+    if(!recents.length){ html+='<div class="empty">No recent images yet</div>'; }
+    else { html+='<div class="grid">'; recents.forEach(function(r,i){ html+='<button class="gi" data-i="'+i+'" aria-label="Open recent image"><img alt="" src="'+r.thumb+'"></button>'; }); html+='</div>'; }
+    dockPop.innerHTML=html;
+    dockPop.querySelectorAll('.gi').forEach(function(b){ b.addEventListener('click',function(){ var r=recents[parseInt(b.getAttribute('data-i'),10)]; hideDockPop(); if(r) ingest(r.full,r.name,r.size,'image/jpeg',true); }); });
+  }
+  function hideDockPop(){ if(dockPop) dockPop.hidden=true; }
+  function toggleDockPop(){ if(dockPop.hidden){ renderDockPop(); dockPop.hidden=false; } else hideDockPop(); }
+  if(dock){
+    dock.addEventListener('click',function(e){
+      var ic=e.target.closest&&e.target.closest('.dock-ic'); if(!ic) return;
+      var a=ic.getAttribute('data-action');
+      if(a==='home') recenterWindow();
+      else if(a==='open') fileInput.click();
+      else if(a==='recent') toggleDockPop();
+      else if(a==='save'){ if(state.outBlob) downloadBtn.click(); else toast('Open an image first'); }
+      else if(a==='help') openHelp('guide');
+      if(a!=='recent') hideDockPop();
+    });
+    document.addEventListener('click',function(e){
+      if(dockPop && !dockPop.hidden){ var inPop=dockPop.contains(e.target), onRecent=e.target.closest&&e.target.closest('.dock-ic.recent'); if(!inPop && !onRecent) hideDockPop(); }
+    });
+  }
+
+  /* ----- sticky note ----- */
+  function updateNote(before, after){
+    var ns=$('noteSaved'), nd=$('noteDetail'); if(!ns) return;
+    var pct = before ? Math.round((1-(after/before))*100) : 0;
+    if(pct<0) pct=0;
+    ns.textContent = pct + '%'; ns.style.color='';
+    nd.textContent = pct>0 ? (fmtBytes(before)+' → '+fmtBytes(after)) : 'Already optimized — no smaller version';
+  }
+  function clearNote(){ var ns=$('noteSaved'), nd=$('noteDetail'); if(!ns) return; ns.textContent='—'; ns.style.color=''; nd.textContent='Drop an image to see the savings.'; }
+  (function(){ document.querySelectorAll('.sticky [data-peel]').forEach(function(b){ b.addEventListener('click',function(){ var s=b.closest('.sticky'); if(s) s.style.display='none'; }); }); })();
+
+  /* ===== file routing: 1 image = studio, many = batch ===== */
+  function handleFiles(fileList){
+    var imgs=[]; for(var i=0;i<fileList.length;i++){ if(/^image\//.test(fileList[i].type)) imgs.push(fileList[i]); }
+    if(!imgs.length){ flash('That file is not an image.'); return; }
+    if(imgs.length===1){ loadFile(imgs[0]); }
+    else { openBatch(imgs); }
+  }
+
+  /* ===== EXIF / metadata privacy guard ===== */
+  function dataURLBytes(durl){ var i=durl.indexOf(','); if(i<0) return null; var bin; try{ bin=atob(durl.slice(i+1)); }catch(e){ return null; } var n=bin.length,b=new Uint8Array(n); for(var k=0;k<n;k++) b[k]=bin.charCodeAt(k); return b; }
+  function blobFromDataURL(durl){ try{ var i=durl.indexOf(','); var mime=(durl.slice(5,i).split(';')[0])||'application/octet-stream'; var b=dataURLBytes(durl); return b?new Blob([b],{type:mime}):null; }catch(e){ return null; } }
+  function parseExif(bytes){
+    if(!bytes||bytes[0]!==0xFF||bytes[1]!==0xD8) return null;
+    var off=2,len=bytes.length;
+    while(off+4<len){
+      if(bytes[off]!==0xFF) break;
+      var marker=bytes[off+1], size=(bytes[off+2]<<8)|bytes[off+3];
+      if(marker===0xE1 && bytes[off+4]===0x45&&bytes[off+5]===0x78&&bytes[off+6]===0x69&&bytes[off+7]===0x66) return parseTiff(bytes, off+10);
+      if(marker===0xDA) break;
+      off+=2+size;
+    }
+    return {make:'',model:'',dateTime:'',gps:null};
+  }
+  function parseTiff(bytes, ts){
+    try{
+      var dv=new DataView(bytes.buffer, bytes.byteOffset+ts);
+      var little=dv.getUint16(0)===0x4949;
+      function u16(o){ return dv.getUint16(o,little); }
+      function u32(o){ return dv.getUint32(o,little); }
+      var res={make:'',model:'',dateTime:'',gps:null}, gpsPtr=0;
+      function ascii(valOff,count){ var o=count<=4?valOff:u32(valOff),s=''; for(var i=0;i<count-1;i++){ var c=bytes[ts+o+i]; if(!c) break; s+=String.fromCharCode(c); } return s.trim(); }
+      function rationals(valOff,count){ var o=u32(valOff),a=[]; for(var i=0;i<count;i++){ var num=u32(o+i*8),den=u32(o+i*8+4); a.push(den?num/den:0); } return a; }
+      function eachEntry(start,cb){ var n=u16(start); for(var i=0;i<n;i++){ var o=start+2+i*12; cb(u16(o),u16(o+2),u32(o+4),o+8); } }
+      eachEntry(u32(4),function(tag,type,count,valOff){
+        if(tag===0x010F) res.make=ascii(valOff,count);
+        else if(tag===0x0110) res.model=ascii(valOff,count);
+        else if(tag===0x0132) res.dateTime=ascii(valOff,count);
+        else if(tag===0x8825) gpsPtr=u32(valOff);
+      });
+      if(gpsPtr){
+        var latRef='N',lngRef='E',lat=null,lng=null;
+        eachEntry(gpsPtr,function(tag,type,count,valOff){
+          if(tag===0x0001) latRef=String.fromCharCode(bytes[ts+valOff]);
+          else if(tag===0x0003) lngRef=String.fromCharCode(bytes[ts+valOff]);
+          else if(tag===0x0002) lat=rationals(valOff,count);
+          else if(tag===0x0004) lng=rationals(valOff,count);
+        });
+        function dms(a){ return (a&&a.length>=3)?(a[0]+a[1]/60+a[2]/3600):null; }
+        var la=dms(lat),lo=dms(lng);
+        if(la!=null&&lo!=null) res.gps={ lat:(latRef==='S'?-la:la), lng:(lngRef==='W'?-lo:lo) };
+      }
+      return res;
+    }catch(e){ return {make:'',model:'',dateTime:'',gps:null}; }
+  }
+  var LOCK_SVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 11V7a5 5 0 0110 0v4M5 11h14v9H5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  var WARN_SVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>';
+  function updateGuard(dataURL, type){
+    var guard=$('guard'), ic=$('guardIc'), txt=$('guardTxt'); if(!guard) return;
+    var ex = /jpeg/.test(type||'') ? parseExif(dataURLBytes(dataURL)) : {make:'',model:'',dateTime:'',gps:null};
+    var parts=[];
+    if(ex && ex.gps){ parts.push('your <b>GPS location</b> ('+ex.gps.lat.toFixed(4)+', '+ex.gps.lng.toFixed(4)+')'); }
+    if(ex && (ex.make||ex.model)){ parts.push('camera info'); }
+    if(ex && ex.dateTime){ parts.push('date taken'); }
+    if(parts.length){
+      guard.className='guard warn'; ic.innerHTML=WARN_SVG;
+      txt.innerHTML='This photo carries hidden metadata — '+parts.join(', ')+'. <b>Good news:</b> your downloaded copy has all of it stripped out.';
+    } else {
+      guard.className='guard ok'; ic.innerHTML=LOCK_SVG;
+      txt.innerHTML='No hidden location or metadata detected. Your download stays clean, too.';
+    }
+    guard.hidden=false;
+  }
+
+  /* ===== Batch mode ===== */
+  var batchItems=[]; // {name, file, url, blob, fmt, outSize, origSize}
+  function openBatch(files){
+    winbody.classList.remove('on'); dropzone.style.display='none'; batchView.hidden=false;
+    addBatchFiles(files); runBatch();
+  }
+  function addBatchFiles(files){
+    for(var i=0;i<files.length;i++){ if(!/^image\//.test(files[i].type)) continue; batchItems.push({ name:files[i].name||'image', file:files[i], url:URL.createObjectURL(files[i]), origSize:files[i].size, blob:null, outSize:0, fmt:'' }); }
+    renderBatch();
+  }
+  function renderBatch(){
+    batchList.innerHTML='';
+    batchItems.forEach(function(it,idx){
+      var row=document.createElement('div'); row.className='b-item';
+      row.innerHTML='<img alt="" src="'+it.url+'"><div class="b-meta"><div class="b-name"></div><div class="b-sub" data-sub></div></div><div class="b-save work" data-save>…</div>';
+      row.querySelector('.b-name').textContent=it.name;
+      row.querySelector('[data-sub]').textContent=fmtBytes(it.origSize);
+      batchList.appendChild(row);
+      it._row=row;
+    });
+    bZipBtn.disabled=true;
+  }
+  function batchSettings(){ return { fmt:bFormat.value, mode:bMode.value, max:parseInt(bMax.value,10)||0 }; }
+  function runBatch(){
+    var s=batchSettings(), token=++runToken; bZipBtn.disabled=true; batchSum.textContent='Compressing…';
+    var done=0, totBefore=0, totAfter=0;
+    function processOne(it){
+      return new Promise(function(resolve){
+        var img=new Image();
+        img.onload=function(){
+          var w=img.naturalWidth,h=img.naturalHeight,sc=s.max?Math.min(1,s.max/Math.max(w,h)):1;
+          var tw=Math.max(1,Math.round(w*sc)), th=Math.max(1,Math.round(h*sc));
+          var fmts = s.fmt==='smart' ? ['image/webp','image/jpeg'] : [s.fmt];
+          var srcBmp=img;
+          function draw(fmt){ var c=document.createElement('canvas'); c.width=tw; c.height=th; var x=c.getContext('2d'); if(fmt==='image/jpeg'){ x.fillStyle='#fff'; x.fillRect(0,0,tw,th); } x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.drawImage(srcBmp,0,0,tw,th); return c; }
+          Promise.all(fmts.map(function(fmt){ var c=draw(fmt); return (s.mode==='visual'?encodeVisual(c,fmt):encode(c,fmt,0.8)).then(function(b){return{fmt:fmt,blob:b};}); }))
+            .then(function(rs){ rs.sort(function(a,b){return a.blob.size-b.blob.size;}); var win=rs[0]; it.blob=win.blob; it.fmt=win.fmt; it.outSize=win.blob.size; resolve(); });
+        };
+        img.onerror=function(){ it.blob=null; resolve(); };
+        img.src=it.url;
+      });
+    }
+    (function next(i){
+      if(token!==runToken) return;
+      if(i>=batchItems.length){
+        batchSum.innerHTML='<b>'+batchItems.length+'</b> images · '+fmtBytes(totBefore)+' → <b>'+fmtBytes(totAfter)+'</b> ('+(totBefore?Math.round((1-totAfter/totBefore)*100):0)+'% smaller)';
+        bZipBtn.disabled=batchItems.every(function(x){return !x.blob;});
+        return;
+      }
+      var it=batchItems[i];
+      processOne(it).then(function(){
+        if(token!==runToken) return;
+        totBefore+=it.origSize||0; totAfter+=it.outSize||0; done++;
+        if(it._row){ var sv=it._row.querySelector('[data-save]'), sub=it._row.querySelector('[data-sub]');
+          if(it.blob){ var p=it.origSize?Math.round((1-it.outSize/it.origSize)*100):0; sv.textContent=(p>=0?p:('+'+Math.abs(p)))+'%'; sv.className='b-save'; sub.textContent=fmtBytes(it.origSize)+' → '+fmtBytes(it.outSize); }
+          else { sv.textContent='✕'; sv.className='b-save work'; }
+        }
+        next(i+1);
+      });
+    })(0);
+  }
+  function extOf(fmt){ return fmt==='image/jpeg'?'jpg':fmt==='image/webp'?'webp':'png'; }
+
+  /* ----- minimal ZIP (store, no compression) with CRC32 ----- */
+  var CRC_TABLE=(function(){ var t=[]; for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+  function crc32(buf){ var c=0xFFFFFFFF; for(var i=0;i<buf.length;i++) c=CRC_TABLE[(c^buf[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+  function strBytes(s){ var b=new Uint8Array(s.length); for(var i=0;i<s.length;i++) b[i]=s.charCodeAt(i)&0xFF; return b; }
+  function buildZip(entries){ // entries: [{name, data:Uint8Array}]
+    var chunks=[], central=[], offset=0;
+    function u16(n){ return new Uint8Array([n&0xFF,(n>>8)&0xFF]); }
+    function u32(n){ return new Uint8Array([n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF]); }
+    entries.forEach(function(e){
+      var name=strBytes(e.name), data=e.data, crc=crc32(data);
+      var local=[].concat(
+        [strBytes('PK\x03\x04')], [u16(20)],[u16(0)],[u16(0)],[u16(0)],[u16(0)],
+        [u32(crc)],[u32(data.length)],[u32(data.length)],[u16(name.length)],[u16(0)],[name],[data]);
+      var localSize=0; local.forEach(function(c){ localSize+=c.length; });
+      chunks.push(local);
+      central.push({name:name,crc:crc,size:data.length,offset:offset});
+      offset+=localSize;
+    });
+    var cd=[], cdSize=0;
+    central.forEach(function(c){
+      var part=[].concat([strBytes('PK\x01\x02')],[u16(20)],[u16(20)],[u16(0)],[u16(0)],[u16(0)],[u16(0)],
+        [u32(c.crc)],[u32(c.size)],[u32(c.size)],[u16(c.name.length)],[u16(0)],[u16(0)],[u16(0)],[u16(0)],[u32(0)],[u32(c.offset)],[c.name]);
+      part.forEach(function(x){ cdSize+=x.length; }); cd.push(part);
+    });
+    var end=[].concat([strBytes('PK\x05\x06')],[u16(0)],[u16(0)],[u16(central.length)],[u16(central.length)],[u32(cdSize)],[u32(offset)],[u16(0)]);
+    var all=[]; chunks.forEach(function(l){ l.forEach(function(c){ all.push(c); }); }); cd.forEach(function(l){ l.forEach(function(c){ all.push(c); }); }); end.forEach(function(c){ all.push(c); });
+    return new Blob(all,{type:'application/zip'});
+  }
+  function downloadZip(){
+    var ready=batchItems.filter(function(it){return it.blob;}); if(!ready.length) return;
+    var seen={};
+    Promise.all(ready.map(function(it){ return it.blob.arrayBuffer().then(function(ab){
+      var base=(it.name||'image').replace(/\.[^.]+$/,''), nm=base+'-quikye.'+extOf(it.fmt), n=1;
+      while(seen[nm]){ nm=base+'-quikye-'+(n++)+'.'+extOf(it.fmt); } seen[nm]=1;
+      return {name:nm, data:new Uint8Array(ab)};
+    }); })).then(function(entries){
+      var zip=buildZip(entries), a=document.createElement('a'); a.href=URL.createObjectURL(zip); a.download='quikye-images.zip';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+      toast(entries.length+' images zipped');
+    });
+  }
+  function clearBatch(){ batchItems.forEach(function(it){ try{ URL.revokeObjectURL(it.url); }catch(e){} }); batchItems=[]; batchView.hidden=true; dropzone.style.display=''; }
+  bFormat.addEventListener('change',runBatch); bMode.addEventListener('change',runBatch); bMax.addEventListener('change',runBatch);
+  bAddBtn.addEventListener('click',function(){ var inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.multiple=true; inp.onchange=function(){ addBatchFiles(inp.files); runBatch(); }; inp.click(); });
+  bClearBtn.addEventListener('click',clearBatch);
+  bZipBtn.addEventListener('click',downloadZip);
+
+  /* ===== PWA: register service worker (works on your hosted https site) ===== */
+  if('serviceWorker' in navigator){ window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+
+  getJpegEncoder();
+})();
+</script>
+</body>
+</html>
