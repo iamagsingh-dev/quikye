@@ -11,6 +11,21 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Quikye" />
+
+<!-- ============================================================
+     GOOGLE ANALYTICS (GA4) — configured for property G-C5KLDSNBQM
+     Note: GA4 uses cookies — add a consent banner for EU/UK visitors
+     and disclose analytics in your privacy notice.
+     ============================================================ -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-C5KLDSNBQM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-C5KLDSNBQM');
+</script>
+
+
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -622,6 +637,12 @@
   var debounceTimer=null, runToken=0;
 
   var jpegEnc=undefined;
+  /* analytics: forwards custom events to GA4 (and Plausible/Umami if present). Never sends image data. */
+  function track(name, props){ try{
+    if(typeof window.gtag==='function') window.gtag('event', name, props||{});
+    if(typeof window.plausible==='function') window.plausible(name,{props:props||{}});
+    if(window.umami && typeof window.umami.track==='function') window.umami.track(name, props||{});
+  }catch(e){} }
   function getJpegEncoder(){
     if(jpegEnc!==undefined) return Promise.resolve(jpegEnc);
     return import('https://esm.sh/@jsquash/jpeg@1.5.0?bundle')
@@ -695,6 +716,7 @@
       sizeAfter._v=0; saved._v=0;
       fname.textContent=(name||'image'); winbody.classList.add('on'); batchView.hidden=true; setCompare(50);
       updateGuard(dataURL, type);
+      track('image_loaded',{type:(type||'').replace('image/','')||'unknown'});
       if(!fromRecent) addRecent(name,size,img,dataURL);
       process();
     };
@@ -831,7 +853,7 @@
   qInput.addEventListener('input',function(){ qVal.textContent=qInput.value; reprocess(); });
   targetInput.addEventListener('input',reprocess);
 
-  downloadBtn.addEventListener('click',function(){ if(!state.outBlob) return; var a=document.createElement('a'); a.href=state.outURL; a.download=state.baseName+'-quikye.'+state.outExt; document.body.appendChild(a); a.click(); document.body.removeChild(a); toast('Saved to your downloads'); });
+  downloadBtn.addEventListener('click',function(){ if(!state.outBlob) return; var a=document.createElement('a'); a.href=state.outURL; a.download=state.baseName+'-quikye.'+state.outExt; document.body.appendChild(a); a.click(); document.body.removeChild(a); toast('Saved to your downloads'); track('image_saved',{format:state.outExt, mode:state.compMode}); });
   copyBtn.addEventListener('click',copyToClipboard);
   shareBtn.addEventListener('click',shareImage);
   resetBtn.addEventListener('click',function(){ state.bitmap=null; if(state.outURL){ URL.revokeObjectURL(state.outURL); state.outURL=null; } winbody.classList.remove('on'); fileInput.value=''; formatSel.value='smart'; qInput.value=80; qVal.textContent='80'; targetInput.value=200; encLine.innerHTML='&nbsp;'; clearNote(); });
@@ -1248,7 +1270,7 @@
     }); })).then(function(entries){
       var zip=buildZip(entries), a=document.createElement('a'); a.href=URL.createObjectURL(zip); a.download='quikye-images.zip';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
-      toast(entries.length+' images zipped');
+      toast(entries.length+' images zipped'); track('batch_zip',{count:entries.length});
     });
   }
   function clearBatch(){ batchItems.forEach(function(it){ try{ URL.revokeObjectURL(it.url); }catch(e){} }); batchItems=[]; batchView.hidden=true; dropzone.style.display=''; }
@@ -1259,6 +1281,7 @@
 
   /* ===== PWA: register service worker (works on your hosted https site) ===== */
   if('serviceWorker' in navigator){ window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+  window.addEventListener('appinstalled',function(){ track('app_installed'); });
 
   getJpegEncoder();
 })();
